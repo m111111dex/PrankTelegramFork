@@ -99,8 +99,8 @@ workflows:
       vars:
         BAZEL_CACHE_DIR: "$CM_BUILD_DIR/../telegram-bazel-cache"
         BUILD_NUMBER: "$PROJECT_BUILD_NUMBER"
-        APP_BUNDLE_ID: "org.pranktelegram.client"
-        APPLE_TEAM_ID: "0000000000"
+        APP_BUNDLE_ID: "ph.telegra.Telegraph"
+        APPLE_TEAM_ID: "C67CF9S4VU"
       groups:
         - telegram_api
     cache:
@@ -118,6 +118,10 @@ workflows:
         script: |
           set -euo pipefail
           xcodebuild -downloadComponent MetalToolchain
+      - name: Import fake signing certificates
+        script: |
+          set -euo pipefail
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
       - name: Initialize Telegram submodules
         script: |
           set -euo pipefail
@@ -155,7 +159,7 @@ workflows:
             --cacheDir="$BAZEL_CACHE_DIR" \
             generateProject \
             --configurationPath=build-system/codemagic-development-configuration.json \
-            --xcodeManagedCodesigning \
+            --codesigningInformationPath=build-system/fake-codesigning \
             --disableExtensions
       - name: Build device app
         script: |
@@ -167,7 +171,7 @@ workflows:
             --configurationPath=build-system/codemagic-development-configuration.json \
             --buildNumber="${BUILD_NUMBER:-1}" \
             --configuration=debug_arm64 \
-            --xcodeManagedCodesigning \
+            --codesigningInformationPath=build-system/fake-codesigning \
             --disableExtensions
       - name: Package IPA for Sideloadly
         script: |

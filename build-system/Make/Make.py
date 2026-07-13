@@ -679,6 +679,8 @@ def build(bazel, arguments):
     )
 
     bazel_command_line.set_configuration(arguments.configuration)
+    if getattr(arguments, 'disableProvisioningProfiles', False):
+        bazel_command_line.set_disable_provisioning_profiles()
     if arguments.embedWatchApp:
         if arguments.configuration in ('debug_arm64', 'release_arm64'):
             if arguments.watchApiId is None or arguments.watchApiHash is None:
@@ -692,6 +694,7 @@ def build(bazel, arguments):
             )
         else:
             print('TelegramBuild: warning: --embedWatchApp requires a device configuration (debug_arm64 or release_arm64); ignored for simulator builds.')
+
     bazel_command_line.set_build_number(arguments.buildNumber)
     bazel_command_line.set_custom_target(arguments.target)
     bazel_command_line.set_continue_on_error(arguments.continueOnError)
@@ -1055,6 +1058,12 @@ if __name__ == '__main__':
         action='store_true',
         default=False,
         help='Enable single-core Swift compile profiling flags.'
+    )
+    buildParser.add_argument(
+        '--disableProvisioningProfiles',
+        action='store_true',
+        default=False,
+        help='Build without provisioning profiles. Useful for simulator builds without signing assets.'
     )
     buildParser.add_argument(
         '--target',

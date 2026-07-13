@@ -1,0 +1,167 @@
+workflows:
+  telegram-ios-simulator:
+    name: Telegram iOS - simulator sanity build
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      xcode: 26.2
+      vars:
+        BAZEL_CACHE_DIR: "$CM_BUILD_DIR/../telegram-bazel-cache"
+        BUILD_NUMBER: "$PROJECT_BUILD_NUMBER"
+        APP_BUNDLE_ID: "org.pranktelegram.client"
+        APPLE_TEAM_ID: "0000000000"
+      groups:
+        - telegram_api
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/bazel
+        - $CM_BUILD_DIR/../telegram-bazel-cache
+    scripts:
+      - name: Validate required secrets
+        script: |
+          set -euo pipefail
+          test -n "${TELEGRAM_API_ID:-}" || { echo "Missing TELEGRAM_API_ID in Codemagic group telegram_api"; exit 1; }
+          test -n "${TELEGRAM_API_HASH:-}" || { echo "Missing TELEGRAM_API_HASH in Codemagic group telegram_api"; exit 1; }
+          echo "Secrets are present."
+      - name: Show tool versions
+        script: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          python3 --version
+      - name: Create Telegram build configuration
+        script: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = {
+              "bundle_id": os.environ.get("APP_BUNDLE_ID", "org.pranktelegram.client"),
+              "api_id": os.environ["TELEGRAM_API_ID"],
+              "api_hash": os.environ["TELEGRAM_API_HASH"],
+              "team_id": os.environ.get("APPLE_TEAM_ID", "0000000000"),
+              "app_center_id": "0",
+              "is_internal_build": "true",
+              "is_appstore_build": "false",
+              "appstore_id": "0",
+              "app_specific_url_scheme": "ptg",
+              "premium_iap_product_id": "",
+              "enable_siri": False,
+              "enable_icloud": False,
+          }
+          path = pathlib.Path("build-system/codemagic-development-configuration.json")
+          path.write_text(json.dumps(cfg, indent=2) + "\n")
+          print(f"Wrote {path}")
+          PY
+      - name: Generate Xcode project
+        script: |
+          set -euo pipefail
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            --cacheDir="$BAZEL_CACHE_DIR" \
+            generateProject \
+            --configurationPath=build-system/codemagic-development-configuration.json \
+            --xcodeManagedCodesigning \
+            --disableProvisioningProfiles
+      - name: Build simulator target
+        script: |
+          set -euo pipefail
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            --cacheDir="$BAZEL_CACHE_DIR" \
+            build \
+            --configurationPath=build-system/codemagic-development-configuration.json \
+            --buildNumber="${BUILD_NUMBER:-1}" \
+            --configuration=debug_sim_arm64
+    artifacts:
+      - build/**/Telegram*.app
+      - bazel-bin/**/*.app
+      - bazel-out/**/*.log
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      email:
+        recipients:
+          - user@example.com
+        notify:
+          success: false
+          failure: false
+
+  telegram-ios-ipa-development:
+    name: Telegram iOS - signed device IPA
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      xcode: 26.2
+      vars:
+        BAZEL_CACHE_DIR: "$CM_BUILD_DIR/../telegram-bazel-cache"
+        BUILD_NUMBER: "$PROJECT_BUILD_NUMBER"
+        APP_BUNDLE_ID: "org.pranktelegram.client"
+      groups:
+        - telegram_api
+        - ios_signing
+    integrations:
+      app_store_connect: codemagic
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/bazel
+        - $CM_BUILD_DIR/../telegram-bazel-cache
+    scripts:
+      - name: Validate required secrets
+        script: |
+          set -euo pipefail
+          test -n "${TELEGRAM_API_ID:-}" || { echo "Missing TELEGRAM_API_ID"; exit 1; }
+          test -n "${TELEGRAM_API_HASH:-}" || { echo "Missing TELEGRAM_API_HASH"; exit 1; }
+          test -n "${APPLE_TEAM_ID:-}" || { echo "Missing APPLE_TEAM_ID"; exit 1; }
+      - name: Fetch signing files from Codemagic
+        script: |
+          set -euo pipefail
+          app-store-connect fetch-signing-files "$APP_BUNDLE_ID" \
+            --type IOS_APP_DEVELOPMENT \
+            --create
+          keychain initialize
+          keychain add-certificates
+      - name: Create Telegram build configuration
+        script: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          cfg = {
+              "bundle_id": os.environ["APP_BUNDLE_ID"],
+              "api_id": os.environ["TELEGRAM_API_ID"],
+              "api_hash": os.environ["TELEGRAM_API_HASH"],
+              "team_id": os.environ["APPLE_TEAM_ID"],
+              "app_center_id": "0",
+              "is_internal_build": "true",
+              "is_appstore_build": "false",
+              "appstore_id": "0",
+              "app_specific_url_scheme": "ptg",
+              "premium_iap_product_id": "",
+              "enable_siri": False,
+              "enable_icloud": False,
+          }
+          path = pathlib.Path("build-system/codemagic-development-configuration.json")
+          path.write_text(json.dumps(cfg, indent=2) + "\n")
+          print(f"Wrote {path}")
+          PY
+      - name: Generate Xcode project with managed signing
+        script: |
+          set -euo pipefail
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            --cacheDir="$BAZEL_CACHE_DIR" \
+            generateProject \
+            --configurationPath=build-system/codemagic-development-configuration.json \
+            --xcodeManagedCodesigning
+      - name: Build device app
+        script: |
+          set -euo pipefail
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            --cacheDir="$BAZEL_CACHE_DIR" \
+            build \
+            --configurationPath=build-system/codemagic-development-configuration.json \
+            --buildNumber="${BUILD_NUMBER:-1}" \
+            --configuration=debug_arm64
+    artifacts:
+      - bazel-bin/**/*.ipa
+      - bazel-bin/**/*.app
+      - bazel-out/**/*.log

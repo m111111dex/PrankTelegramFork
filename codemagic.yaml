@@ -29,6 +29,10 @@ workflows:
           sw_vers
           xcodebuild -version
           python3 --version
+      - name: Install Metal toolchain
+        script: |
+          set -euo pipefail
+          xcodebuild -downloadComponent MetalToolchain
       - name: Initialize Telegram submodules
         script: |
           set -euo pipefail
@@ -127,6 +131,10 @@ workflows:
             --create
           keychain initialize
           keychain add-certificates
+      - name: Install Metal toolchain
+        script: |
+          set -euo pipefail
+          xcodebuild -downloadComponent MetalToolchain
       - name: Initialize Telegram submodules
         script: |
           set -euo pipefail

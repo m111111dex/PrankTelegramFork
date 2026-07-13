@@ -89,16 +89,9 @@ workflows:
       - bazel-bin/**/*.app
       - bazel-out/**/*.log
       - /tmp/xcodebuild_logs/*.log
-    publishing:
-      email:
-        recipients:
-          - user@example.com
-        notify:
-          success: false
-          failure: false
 
   telegram-ios-ipa-development:
-    name: Telegram iOS - signed device IPA
+    name: Telegram iOS - device IPA for Sideloadly
     max_build_duration: 120
     instance_type: mac_mini_m2
     environment:
@@ -107,11 +100,9 @@ workflows:
         BAZEL_CACHE_DIR: "$CM_BUILD_DIR/../telegram-bazel-cache"
         BUILD_NUMBER: "$PROJECT_BUILD_NUMBER"
         APP_BUNDLE_ID: "org.pranktelegram.client"
+        APPLE_TEAM_ID: "0000000000"
       groups:
         - telegram_api
-        - ios_signing
-    integrations:
-      app_store_connect: codemagic
     cache:
       cache_paths:
         - $HOME/Library/Caches/bazel
@@ -122,15 +113,7 @@ workflows:
           set -euo pipefail
           test -n "${TELEGRAM_API_ID:-}" || { echo "Missing TELEGRAM_API_ID"; exit 1; }
           test -n "${TELEGRAM_API_HASH:-}" || { echo "Missing TELEGRAM_API_HASH"; exit 1; }
-          test -n "${APPLE_TEAM_ID:-}" || { echo "Missing APPLE_TEAM_ID"; exit 1; }
-      - name: Fetch signing files from Codemagic
-        script: |
-          set -euo pipefail
-          app-store-connect fetch-signing-files "$APP_BUNDLE_ID" \
-            --type IOS_APP_DEVELOPMENT \
-            --create
-          keychain initialize
-          keychain add-certificates
+          echo "Secrets are present."
       - name: Install Metal toolchain
         script: |
           set -euo pipefail
@@ -150,7 +133,7 @@ workflows:
               "bundle_id": os.environ["APP_BUNDLE_ID"],
               "api_id": os.environ["TELEGRAM_API_ID"],
               "api_hash": os.environ["TELEGRAM_API_HASH"],
-              "team_id": os.environ["APPLE_TEAM_ID"],
+              "team_id": os.environ.get("APPLE_TEAM_ID", "0000000000"),
               "app_center_id": "0",
               "is_internal_build": "true",
               "is_appstore_build": "false",
@@ -164,7 +147,7 @@ workflows:
           path.write_text(json.dumps(cfg, indent=2) + "\n")
           print(f"Wrote {path}")
           PY
-      - name: Generate Xcode project with managed signing
+      - name: Generate Xcode project for Sideloadly IPA
         script: |
           set -euo pipefail
           python3 build-system/Make/Make.py \
@@ -172,7 +155,8 @@ workflows:
             --cacheDir="$BAZEL_CACHE_DIR" \
             generateProject \
             --configurationPath=build-system/codemagic-development-configuration.json \
-            --xcodeManagedCodesigning
+            --xcodeManagedCodesigning \
+            --disableProvisioningProfiles
       - name: Build device app
         script: |
           set -euo pipefail
@@ -183,8 +167,20 @@ workflows:
             --configurationPath=build-system/codemagic-development-configuration.json \
             --buildNumber="${BUILD_NUMBER:-1}" \
             --configuration=debug_arm64 \
-            --xcodeManagedCodesigning
+            --xcodeManagedCodesigning \
+            --disableProvisioningProfiles
+      - name: Package IPA for Sideloadly
+        script: |
+          set -euo pipefail
+          APP_PATH="$(find bazel-bin -name Telegram.app -type d | head -1)"
+          test -n "$APP_PATH" || { echo "Telegram.app not found under bazel-bin"; exit 1; }
+          rm -rf "$CM_BUILD_DIR/sideloadly-ipa"
+          mkdir -p "$CM_BUILD_DIR/sideloadly-ipa/Payload"
+          cp -R "$APP_PATH" "$CM_BUILD_DIR/sideloadly-ipa/Payload/Telegram.app"
+          (cd "$CM_BUILD_DIR/sideloadly-ipa" && zip -qry "$CM_BUILD_DIR/Telegram-Sideloadly.ipa" Payload)
+          ls -lh "$CM_BUILD_DIR/Telegram-Sideloadly.ipa"
     artifacts:
+      - Telegram-Sideloadly.ipa
       - bazel-bin/**/*.ipa
       - bazel-bin/**/*.app
       - bazel-out/**/*.log

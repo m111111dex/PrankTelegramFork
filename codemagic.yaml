@@ -170,7 +170,7 @@ workflows:
             build \
             --configurationPath=build-system/codemagic-development-configuration.json \
             --buildNumber="${BUILD_NUMBER:-1}" \
-            --configuration=debug_arm64 \
+            --configuration=release_arm64 \
             --codesigningInformationPath=build-system/fake-codesigning \
             --disableExtensions
       - name: Package IPA for Sideloadly

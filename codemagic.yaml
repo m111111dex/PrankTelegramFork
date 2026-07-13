@@ -29,6 +29,12 @@ workflows:
           sw_vers
           xcodebuild -version
           python3 --version
+      - name: Initialize Telegram submodules
+        script: |
+          set -euo pipefail
+          git submodule sync --recursive
+          git submodule update --init --recursive
+          git submodule status --recursive
       - name: Create Telegram build configuration
         script: |
           set -euo pipefail
@@ -119,6 +125,12 @@ workflows:
             --create
           keychain initialize
           keychain add-certificates
+      - name: Initialize Telegram submodules
+        script: |
+          set -euo pipefail
+          git submodule sync --recursive
+          git submodule update --init --recursive
+          git submodule status --recursive
       - name: Create Telegram build configuration
         script: |
           set -euo pipefail

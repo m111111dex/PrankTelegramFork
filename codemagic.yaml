@@ -77,7 +77,8 @@ workflows:
             build \
             --configurationPath=build-system/codemagic-development-configuration.json \
             --buildNumber="${BUILD_NUMBER:-1}" \
-            --configuration=debug_sim_arm64
+            --configuration=debug_sim_arm64 \
+            --xcodeManagedCodesigning
     artifacts:
       - build/**/Telegram*.app
       - bazel-bin/**/*.app
@@ -172,7 +173,8 @@ workflows:
             build \
             --configurationPath=build-system/codemagic-development-configuration.json \
             --buildNumber="${BUILD_NUMBER:-1}" \
-            --configuration=debug_arm64
+            --configuration=debug_arm64 \
+            --xcodeManagedCodesigning
     artifacts:
       - bazel-bin/**/*.ipa
       - bazel-bin/**/*.app

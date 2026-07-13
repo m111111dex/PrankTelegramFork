@@ -176,13 +176,19 @@ workflows:
       - name: Package IPA for Sideloadly
         script: |
           set -euo pipefail
-          APP_PATH="$(find bazel-bin -name Telegram.app -type d | head -1)"
-          test -n "$APP_PATH" || { echo "Telegram.app not found under bazel-bin"; exit 1; }
-          rm -rf "$CM_BUILD_DIR/sideloadly-ipa"
-          mkdir -p "$CM_BUILD_DIR/sideloadly-ipa/Payload"
-          cp -R "$APP_PATH" "$CM_BUILD_DIR/sideloadly-ipa/Payload/Telegram.app"
-          (cd "$CM_BUILD_DIR/sideloadly-ipa" && zip -qry "$CM_BUILD_DIR/Telegram-Sideloadly.ipa" Payload)
-          ls -lh "$CM_BUILD_DIR/Telegram-Sideloadly.ipa"
+          OUTPUT_IPA="$CM_BUILD_DIR/Telegram-Sideloadly.ipa"
+          EXISTING_IPA="$(find bazel-bin bazel-out -name Telegram.ipa -type f | head -1 || true)"
+          if [ -n "$EXISTING_IPA" ]; then
+            cp "$EXISTING_IPA" "$OUTPUT_IPA"
+          else
+            APP_PATH="$(find bazel-bin bazel-out -name Telegram.app -type d | head -1 || true)"
+            test -n "$APP_PATH" || { echo "Telegram.app not found under bazel-bin or bazel-out"; find bazel-bin bazel-out -maxdepth 5 \( -name '*.app' -o -name '*.ipa' \) -print || true; exit 1; }
+            rm -rf "$CM_BUILD_DIR/sideloadly-ipa"
+            mkdir -p "$CM_BUILD_DIR/sideloadly-ipa/Payload"
+            cp -R "$APP_PATH" "$CM_BUILD_DIR/sideloadly-ipa/Payload/Telegram.app"
+            (cd "$CM_BUILD_DIR/sideloadly-ipa" && zip -qry "$OUTPUT_IPA" Payload)
+          fi
+          ls -lh "$OUTPUT_IPA"
     artifacts:
       - Telegram-Sideloadly.ipa
       - bazel-bin/**/*.ipa

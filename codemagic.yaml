@@ -156,6 +156,7 @@ workflows:
             generateProject \
             --configurationPath=build-system/codemagic-development-configuration.json \
             --xcodeManagedCodesigning \
+            --disableExtensions \
             --disableProvisioningProfiles
       - name: Build device app
         script: |
@@ -168,6 +169,7 @@ workflows:
             --buildNumber="${BUILD_NUMBER:-1}" \
             --configuration=debug_arm64 \
             --xcodeManagedCodesigning \
+            --disableExtensions \
             --disableProvisioningProfiles
       - name: Package IPA for Sideloadly
         script: |

@@ -45,6 +45,7 @@ class BazelCommandLine:
         self.continue_on_error = False
         self.show_actions = False
         self.enable_sandbox = False
+        self.disable_extensions = False
         self.disable_provisioning_profiles = False
         self.profile_swift = False
         self.embed_watch_app = False
@@ -131,6 +132,9 @@ class BazelCommandLine:
 
     def set_enable_sandbox(self, enable_sandbox):
         self.enable_sandbox = enable_sandbox
+
+    def set_disable_extensions(self):
+        self.disable_extensions = True
 
     def set_split_swiftmodules(self, value):
         self.split_submodules = value
@@ -296,6 +300,8 @@ class BazelCommandLine:
         if self.enable_sandbox:
             combined_arguments += ['--spawn_strategy=sandboxed']
 
+        if self.disable_extensions:
+            combined_arguments += ['--//Telegram:disableExtensions']
         if self.disable_provisioning_profiles:
             combined_arguments += ['--//Telegram:disableProvisioningProfiles']
 
@@ -679,6 +685,8 @@ def build(bazel, arguments):
     )
 
     bazel_command_line.set_configuration(arguments.configuration)
+    if getattr(arguments, 'disableExtensions', False):
+        bazel_command_line.set_disable_extensions()
     if getattr(arguments, 'disableProvisioningProfiles', False):
         bazel_command_line.set_disable_provisioning_profiles()
     if arguments.embedWatchApp:
@@ -1058,6 +1066,12 @@ if __name__ == '__main__':
         action='store_true',
         default=False,
         help='Enable single-core Swift compile profiling flags.'
+    )
+    buildParser.add_argument(
+        '--disableExtensions',
+        action='store_true',
+        default=False,
+        help='Build without app extensions. Useful for unsigned device IPA packaging.'
     )
     buildParser.add_argument(
         '--disableProvisioningProfiles',

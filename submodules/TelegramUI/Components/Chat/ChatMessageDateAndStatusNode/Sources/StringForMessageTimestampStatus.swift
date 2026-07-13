@@ -13,6 +13,15 @@ public enum MessageTimestampStatusFormat {
     case minimal
 }
 
+private let prankTimestampOverrideEnabled = true
+
+private func prankTimestampOverrideText(dateTimeFormat: PresentationDateTimeFormat) -> String? {
+    guard prankTimestampOverrideEnabled else {
+        return nil
+    }
+    return stringForShortTimestamp(hours: 13, minutes: 37, dateTimeFormat: dateTimeFormat)
+}
+
 private func dateStringForDay(strings: PresentationStrings, dateTimeFormat: PresentationDateTimeFormat, timestamp: Int32) -> String {
     var t: time_t = time_t(timestamp)
     var timeinfo: tm = tm()
@@ -91,10 +100,13 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
     }
     
     var dateText = stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)
+    if let prankDateText = prankTimestampOverrideText(dateTimeFormat: dateTimeFormat) {
+        dateText = prankDateText
+    }
     if timestamp == scheduleWhenOnlineTimestamp {
         dateText = "         "
     }
-    
+
     if let repeatPeriod = message.scheduleRepeatPeriod {
         let repeatString: String
         switch repeatPeriod {
@@ -148,11 +160,13 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
         } else {
             dayText = strings.Date_ChatDateHeaderYear(monthAtIndex(Int(timeinfo.tm_mon), strings: strings), "\(timeinfo.tm_mday)", "\(1900 + timeinfo.tm_year)").string
         }
-        dateText = strings.Message_FullDateFormat(dayText, stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)).string
+        let timeText = prankTimestampOverrideText(dateTimeFormat: dateTimeFormat) ?? stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)
+        dateText = strings.Message_FullDateFormat(dayText, timeText).string
     } else if let forwardInfo = message.forwardInfo, forwardInfo.flags.contains(.isImported) {
-        dateText = strings.Message_ImportedDateFormat(dateStringForDay(strings: strings, dateTimeFormat: dateTimeFormat, timestamp: forwardInfo.date), stringForMessageTimestamp(timestamp: forwardInfo.date, dateTimeFormat: dateTimeFormat), dateText).string
+        let importedTimeText = prankTimestampOverrideText(dateTimeFormat: dateTimeFormat) ?? stringForMessageTimestamp(timestamp: forwardInfo.date, dateTimeFormat: dateTimeFormat)
+        dateText = strings.Message_ImportedDateFormat(dateStringForDay(strings: strings, dateTimeFormat: dateTimeFormat, timestamp: forwardInfo.date), importedTimeText, dateText).string
     }
-    
+
     var authorTitle: String?
     if let author = message.author, case .user = author {
         if let peer = message.peers[message.id.peerId] as? TelegramChannel, case .broadcast = peer.info {

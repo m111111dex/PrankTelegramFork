@@ -151,16 +151,6 @@ workflows:
           path.write_text(json.dumps(cfg, indent=2) + "\n")
           print(f"Wrote {path}")
           PY
-      - name: Generate Xcode project for Sideloadly IPA
-        script: |
-          set -euo pipefail
-          python3 build-system/Make/Make.py \
-            --overrideXcodeVersion \
-            --cacheDir="$BAZEL_CACHE_DIR" \
-            generateProject \
-            --configurationPath=build-system/codemagic-development-configuration.json \
-            --codesigningInformationPath=build-system/fake-codesigning \
-            --disableExtensions
       - name: Build device app
         script: |
           set -euo pipefail
@@ -172,23 +162,16 @@ workflows:
             --buildNumber="${BUILD_NUMBER:-1}" \
             --configuration=release_arm64 \
             --codesigningInformationPath=build-system/fake-codesigning \
-            --disableExtensions
-      - name: Package IPA for Sideloadly
+            --disableExtensions \
+            --outputBuildArtifactsPath="$CM_BUILD_DIR/build/artifacts"
+      - name: Publish IPA for Sideloadly
         script: |
           set -euo pipefail
-          OUTPUT_IPA="$CM_BUILD_DIR/Telegram-Sideloadly.ipa"
-          EXISTING_IPA="$(find bazel-bin bazel-out -name Telegram.ipa -type f | head -1 || true)"
-          if [ -n "$EXISTING_IPA" ]; then
-            cp "$EXISTING_IPA" "$OUTPUT_IPA"
-          else
-            APP_PATH="$(find bazel-bin bazel-out -name Telegram.app -type d | head -1 || true)"
-            test -n "$APP_PATH" || { echo "Telegram.app not found under bazel-bin or bazel-out"; find bazel-bin bazel-out -maxdepth 5 \( -name '*.app' -o -name '*.ipa' \) -print || true; exit 1; }
-            rm -rf "$CM_BUILD_DIR/sideloadly-ipa"
-            mkdir -p "$CM_BUILD_DIR/sideloadly-ipa/Payload"
-            cp -R "$APP_PATH" "$CM_BUILD_DIR/sideloadly-ipa/Payload/Telegram.app"
-            (cd "$CM_BUILD_DIR/sideloadly-ipa" && zip -qry "$OUTPUT_IPA" Payload)
-          fi
-          ls -lh "$OUTPUT_IPA"
+          SOURCE_IPA="$CM_BUILD_DIR/build/artifacts/Telegram.ipa"
+          test -f "$SOURCE_IPA" || { echo "Make.py did not export $SOURCE_IPA"; exit 1; }
+          cp "$SOURCE_IPA" "$CM_BUILD_DIR/Telegram-Sideloadly.ipa"
+          unzip -l "$CM_BUILD_DIR/Telegram-Sideloadly.ipa" | grep -q 'Payload/Telegram.app/Info.plist'
+          ls -lh "$CM_BUILD_DIR/Telegram-Sideloadly.ipa"
     artifacts:
       - Telegram-Sideloadly.ipa
       - bazel-bin/**/*.ipa

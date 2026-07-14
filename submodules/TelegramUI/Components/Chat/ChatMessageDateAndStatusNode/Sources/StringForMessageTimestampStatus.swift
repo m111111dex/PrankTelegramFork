@@ -96,6 +96,7 @@ public func stringForMessageTimestampStatus(accountPeerId: EnginePeer.Id, messag
     if let sourceAuthorInfo = message.sourceAuthorInfo, let orignalDate = sourceAuthorInfo.orignalDate {
         timestamp = orignalDate
     }
+    timestamp = PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: timestamp)
     
     var dateText = stringForMessageTimestamp(timestamp: timestamp, dateTimeFormat: dateTimeFormat)
     if let prankDateText = prankTimestampOverrideText(messageId: message.id, dateTimeFormat: dateTimeFormat) {

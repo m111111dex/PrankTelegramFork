@@ -1238,6 +1238,25 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     controllerInteraction.navigationController()?.present(alertController, animated: true)
                 })
             })))
+            actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
+            }, action: { c, _ in
+                c?.dismiss(completion: {
+                    let alertController = UIAlertController(title: "Сменить дату", message: "Введите дату в формате ДД.ММ.ГГГГ. Это сообщение и более новые сообщения будут отображаться с таким сдвигом даты.", preferredStyle: .alert)
+                    alertController.addTextField { textField in
+                        textField.placeholder = "14.07.2026"
+                        textField.keyboardType = .numbersAndPunctuation
+                    }
+                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_Cancel, style: .cancel, handler: nil))
+                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_OK, style: .default, handler: { _ in
+                        guard let text = alertController.textFields?.first?.text, PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: text) else {
+                            return
+                        }
+                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                    }))
+                    controllerInteraction.navigationController()?.present(alertController, animated: true)
+                })
+            })))
         }
         
         if data.messageActions.options.contains(.sendScheduledNow) {

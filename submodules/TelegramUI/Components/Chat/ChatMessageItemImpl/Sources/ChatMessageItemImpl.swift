@@ -399,8 +399,9 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
         if case .scheduledMessages = associatedData.subject {
             isScheduledMessages = true
         }
+        let effectiveTimestamp = PrankMessageTimestampOverrides.effectiveTimestamp(messageId: content.firstMessage.id, timestamp: content.index.timestamp)
         
-        self.dateHeader = ChatMessageDateHeader(timestamp: content.index.timestamp, separableThreadId: nil, scheduled: isScheduledMessages, displayHeader: nil, presentationData: presentationData, controllerInteraction: controllerInteraction, context: context, action: { timestamp, alreadyThere in
+        self.dateHeader = ChatMessageDateHeader(timestamp: effectiveTimestamp, separableThreadId: nil, scheduled: isScheduledMessages, displayHeader: nil, presentationData: presentationData, controllerInteraction: controllerInteraction, context: context, action: { timestamp, alreadyThere in
             var calendar = NSCalendar.current
             calendar.timeZone = TimeZone(abbreviation: "UTC")!
             let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
@@ -412,7 +413,7 @@ public final class ChatMessageItemImpl: ChatMessageItem, CustomStringConvertible
         })
         
         if let headerSeparableThreadId, let headerDisplayPeer, !(associatedData.subject?.isService ?? false) {
-            self.topicHeader = ChatMessageDateHeader(timestamp: content.index.timestamp, separableThreadId: headerSeparableThreadId, scheduled: false, displayHeader: headerDisplayPeer, presentationData: presentationData, controllerInteraction: controllerInteraction, context: context, action: { _, _ in
+            self.topicHeader = ChatMessageDateHeader(timestamp: effectiveTimestamp, separableThreadId: headerSeparableThreadId, scheduled: false, displayHeader: headerDisplayPeer, presentationData: presentationData, controllerInteraction: controllerInteraction, context: context, action: { _, _ in
                 controllerInteraction.updateChatLocationThread(headerSeparableThreadId, nil)
             })
         } else {

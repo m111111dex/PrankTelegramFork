@@ -69,6 +69,96 @@ import Pasteboard
 import UndoUI
 import BrowserUI
 
+
+private enum PrankTimestampCommand {
+    case time(PrankMessageTimeOverride)
+    case date(String)
+    case dateTime(PrankMessageTimeOverride, String)
+    case clearTime
+    case clearDate
+    case clearAll
+    case invalid(String)
+}
+
+private func prankTimestampCommandLog(_ text: String) {
+    NSLog("[PrankTimestampCommand] \(text)")
+}
+
+private func prankTimestampCommandName(_ text: String) -> String? {
+    guard let firstToken = text.trimmingCharacters(in: .whitespacesAndNewlines).split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" }).first else {
+        return nil
+    }
+    let command = String(firstToken).lowercased()
+    return command.split(separator: "@").first.map(String.init)
+}
+
+private func isPrankTimestampCommandText(_ text: String) -> Bool {
+    guard let command = prankTimestampCommandName(text) else {
+        return false
+    }
+    return command == "/ptime" || command == "/pdate" || command == "/pdt" || command == "/pclear"
+}
+
+private func parsePrankTimestampCommand(_ text: String) -> PrankTimestampCommand? {
+    let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard isPrankTimestampCommandText(normalized), let command = prankTimestampCommandName(normalized) else {
+        return nil
+    }
+    let tokens = normalized
+        .replacingOccurrences(of: ",", with: " ")
+        .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
+        .map(String.init)
+    
+    let arguments = Array(tokens.dropFirst())
+    switch command {
+    case "/ptime":
+        guard let value = arguments.first else {
+            return .invalid("missing time")
+        }
+        let lowered = value.lowercased()
+        if lowered == "reset" || lowered == "clear" || lowered == "сброс" {
+            return .clearTime
+        }
+        guard let time = PrankMessageTimestampOverrides.parseTime(value) else {
+            return .invalid("invalid time")
+        }
+        return .time(time)
+    case "/pdate":
+        guard let value = arguments.first else {
+            return .invalid("missing date")
+        }
+        let lowered = value.lowercased()
+        if lowered == "reset" || lowered == "clear" || lowered == "сброс" {
+            return .clearDate
+        }
+        return .date(value)
+    case "/pdt":
+        guard arguments.count >= 2 else {
+            return .invalid("missing time/date")
+        }
+        if let time = PrankMessageTimestampOverrides.parseTime(arguments[0]) {
+            return .dateTime(time, arguments[1])
+        } else if let time = PrankMessageTimestampOverrides.parseTime(arguments[1]) {
+            return .dateTime(time, arguments[0])
+        } else {
+            return .invalid("invalid time/date")
+        }
+    case "/pclear":
+        let value = arguments.first?.lowercased() ?? "all"
+        if value == "time" || value == "время" {
+            return .clearTime
+        } else if value == "date" || value == "дата" {
+            return .clearDate
+        } else if value == "all" || value == "всё" || value == "все" {
+            return .clearAll
+        } else {
+            return .invalid("invalid clear target")
+        }
+    default:
+        return nil
+    }
+}
+
 final class VideoNavigationControllerDropContentItem: NavigationControllerDropContentItem {
     let itemNode: OverlayMediaItemNode
     
@@ -4678,6 +4768,80 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         }
     }
     
+    private func clearPrankTimestampCommandInput(textInputPanelNode: ChatTextInputPanelNode) {
+        prankTimestampCommandLog("clear command input")
+        textInputPanelNode.text = ""
+        self.requestUpdateChatInterfaceState(.immediate, true, { state in
+            var state = state
+            state = state.withUpdatedComposeInputState(ChatTextInputState())
+            state = state.withUpdatedReplyMessageSubject(nil)
+            state = state.withUpdatedSendMessageEffect(nil)
+            state = state.withUpdatedPostSuggestionState(nil)
+            state = state.withUpdatedComposeDisableUrlPreviews([])
+            return state
+        })
+    }
+    
+    private func tryApplyPrankTimestampCommandText(_ text: String, textInputPanelNode: ChatTextInputPanelNode) -> Bool {
+        guard isPrankTimestampCommandText(text) else {
+            return false
+        }
+        prankTimestampCommandLog("command intercepted text=\(text)")
+        guard let command = parsePrankTimestampCommand(text) else {
+            prankTimestampCommandLog("command parse returned nil")
+            return true
+        }
+        guard let targetMessage = self.chatPresentationInterfaceState.replyMessage else {
+            prankTimestampCommandLog("command ignored: no reply target")
+            return true
+        }
+        
+        var shouldClearInput = false
+        switch command {
+        case let .time(time):
+            PrankMessageTimestampOverrides.setTimeOverride(messageId: targetMessage.id, hour: time.hour, minute: time.minute)
+            prankTimestampCommandLog("applied time target=\(targetMessage.id.peerId.toInt64()):\(targetMessage.id.namespace):\(targetMessage.id.id) hour=\(time.hour) minute=\(time.minute)")
+            shouldClearInput = true
+        case let .date(dateText):
+            if PrankMessageTimestampOverrides.setDateOverride(messageId: targetMessage.id, timestamp: targetMessage.timestamp, dateText: dateText) {
+                prankTimestampCommandLog("applied date target=\(targetMessage.id.peerId.toInt64()):\(targetMessage.id.namespace):\(targetMessage.id.id) date=\(dateText)")
+                shouldClearInput = true
+            } else {
+                prankTimestampCommandLog("date command failed validation date=\(dateText)")
+            }
+        case let .dateTime(time, dateText):
+            let dateResult = PrankMessageTimestampOverrides.setDateOverride(messageId: targetMessage.id, timestamp: targetMessage.timestamp, dateText: dateText)
+            if dateResult {
+                PrankMessageTimestampOverrides.setTimeOverride(messageId: targetMessage.id, hour: time.hour, minute: time.minute)
+                prankTimestampCommandLog("applied dateTime target=\(targetMessage.id.peerId.toInt64()):\(targetMessage.id.namespace):\(targetMessage.id.id) hour=\(time.hour) minute=\(time.minute) date=\(dateText)")
+                shouldClearInput = true
+            } else {
+                prankTimestampCommandLog("dateTime command failed validation date=\(dateText)")
+            }
+        case .clearTime:
+            PrankMessageTimestampOverrides.clearTimeOverride(messageId: targetMessage.id)
+            prankTimestampCommandLog("cleared time target=\(targetMessage.id.peerId.toInt64()):\(targetMessage.id.namespace):\(targetMessage.id.id)")
+            shouldClearInput = true
+        case .clearDate:
+            PrankMessageTimestampOverrides.clearDateOverride(messageId: targetMessage.id, timestamp: targetMessage.timestamp)
+            prankTimestampCommandLog("cleared date target=\(targetMessage.id.peerId.toInt64()):\(targetMessage.id.namespace):\(targetMessage.id.id)")
+            shouldClearInput = true
+        case .clearAll:
+            PrankMessageTimestampOverrides.clearTimeOverride(messageId: targetMessage.id)
+            PrankMessageTimestampOverrides.clearDateOverride(messageId: targetMessage.id, timestamp: targetMessage.timestamp)
+            prankTimestampCommandLog("cleared all target=\(targetMessage.id.peerId.toInt64()):\(targetMessage.id.namespace):\(targetMessage.id.id)")
+            shouldClearInput = true
+        case let .invalid(reason):
+            prankTimestampCommandLog("command invalid reason=\(reason)")
+        }
+        
+        if shouldClearInput {
+            self.controllerInteraction.requestMessageUpdate(targetMessage.id, true, nil)
+            self.clearPrankTimestampCommandInput(textInputPanelNode: textInputPanelNode)
+        }
+        return true
+    }
+    
     func sendCurrentMessage(silentPosting: Bool? = nil, scheduleTime: Int32? = nil, repeatPeriod: Int32? = nil, postpone: Bool = false, messageEffect: ChatSendMessageEffect? = nil, completion: @escaping () -> Void = {}) {
         guard let textInputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode else {
             return
@@ -4827,6 +4991,10 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             self.updateTypingActivity(false)
             
             let trimmedInputText = effectiveInputText.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            if self.tryApplyPrankTimestampCommandText(trimmedInputText, textInputPanelNode: textInputPanelNode) {
+                completion()
+                return
+            }
             let peerId = effectivePresentationInterfaceState.chatLocation.peerId
             if peerId?.namespace != Namespaces.Peer.SecretChat, let interactiveEmojis = self.interactiveEmojis, interactiveEmojis.emojis.contains(trimmedInputText), effectiveInputText.attribute(ChatTextInputAttributes.customEmoji, at: 0, effectiveRange: nil) == nil {
                 messages.append(.message(text: "", attributes: [], inlineStickers: [:], mediaReference: AnyMediaReference.standalone(media: TelegramMediaDice(emoji: trimmedInputText)), threadId: self.chatLocation.threadId, replyToMessageId: self.chatPresentationInterfaceState.interfaceState.replyMessageSubject?.subjectModel, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: []))

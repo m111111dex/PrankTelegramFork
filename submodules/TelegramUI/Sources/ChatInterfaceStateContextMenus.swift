@@ -80,8 +80,9 @@ private final class PrankTimestampPickerController: ViewController {
         
         self.view.backgroundColor = .clear
         
+        prankTimestampDebugLog("picker viewDidLoad mode=\(self.mode)")
         self.dimView.backgroundColor = UIColor(white: 0.0, alpha: 0.5)
-        self.dimView.alpha = 0.0
+        self.dimView.alpha = 1.0
         self.dimView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(self.cancelPressed)))
         self.view.addSubview(self.dimView)
         
@@ -118,29 +119,32 @@ private final class PrankTimestampPickerController: ViewController {
         self.contentView.addSubview(self.doneButton)
     }
     
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
+    override func containerLayoutUpdated(_ layout: ContainerViewLayout, transition: ContainedViewLayoutTransition) {
+        super.containerLayoutUpdated(layout, transition: transition)
         
-        let bounds = self.view.bounds
-        self.dimView.frame = bounds
+        prankTimestampDebugLog("picker layout mode=\(self.mode) size=\(layout.size.width)x\(layout.size.height) safeBottom=\(layout.safeInsets.bottom)")
+        self.updatePickerLayout(size: layout.size, safeInsets: layout.safeInsets)
+    }
+    
+    private func updatePickerLayout(size: CGSize, safeInsets: UIEdgeInsets) {
+        self.dimView.frame = CGRect(origin: CGPoint(), size: size)
         
         let sideInset: CGFloat = 10.0
-        let bottomInset = self.view.safeAreaInsets.bottom
-        let contentWidth = bounds.width - sideInset * 2.0
+        let bottomInset = safeInsets.bottom
+        let contentWidth = max(0.0, size.width - sideInset * 2.0)
         let contentHeight: CGFloat = 356.0 + bottomInset
-        self.contentView.frame = CGRect(x: sideInset, y: bounds.height - contentHeight - 8.0, width: contentWidth, height: contentHeight)
+        let contentY = max(0.0, size.height - contentHeight - 8.0)
+        self.contentView.frame = CGRect(x: sideInset, y: contentY, width: contentWidth, height: contentHeight)
         
-        self.titleLabel.frame = CGRect(x: 56.0, y: 16.0, width: contentWidth - 112.0, height: 24.0)
+        self.titleLabel.frame = CGRect(x: 56.0, y: 16.0, width: max(0.0, contentWidth - 112.0), height: 24.0)
         self.cancelButton.frame = CGRect(x: 8.0, y: 8.0, width: 96.0, height: 40.0)
-        self.doneButton.frame = CGRect(x: contentWidth - 104.0, y: 8.0, width: 96.0, height: 40.0)
+        self.doneButton.frame = CGRect(x: max(8.0, contentWidth - 104.0), y: 8.0, width: 96.0, height: 40.0)
         self.datePicker.frame = CGRect(x: 0.0, y: 54.0, width: contentWidth, height: 260.0)
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        UIView.animate(withDuration: 0.2) {
-            self.dimView.alpha = 1.0
-        }
+        prankTimestampDebugLog("picker viewDidAppear mode=\(self.mode)")
     }
     
     @objc private func cancelPressed() {

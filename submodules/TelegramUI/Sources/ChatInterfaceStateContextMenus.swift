@@ -1217,8 +1217,9 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         if messages.count == 1 && !isAction {
             actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { c, _ in
-                c?.dismiss(completion: {
+            }, action: { _, f in
+                f(.dismissWithoutContent)
+                Queue.mainQueue().after(0.35, {
                     let alertController = UIAlertController(title: "Сменить время", message: "Введите время в формате ЧЧ:ММ", preferredStyle: .alert)
                     alertController.addTextField { textField in
                         textField.placeholder = "13:37"
@@ -1240,8 +1241,9 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             })))
             actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { c, _ in
-                c?.dismiss(completion: {
+            }, action: { _, f in
+                f(.dismissWithoutContent)
+                Queue.mainQueue().after(0.35, {
                     let alertController = UIAlertController(title: "Сменить дату", message: "Введите дату в формате ДД.ММ.ГГГГ. Это сообщение и более новые сообщения будут отображаться с таким сдвигом даты.", preferredStyle: .alert)
                     alertController.addTextField { textField in
                         textField.placeholder = "14.07.2026"

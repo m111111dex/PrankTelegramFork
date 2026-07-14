@@ -1,4 +1,5 @@
 import Foundation
+import Postbox
 
 public struct PrankMessageTimeOverride: Codable, Equatable {
     public let hour: Int

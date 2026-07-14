@@ -88,9 +88,11 @@ public enum PrankMessageTimestampOverrides {
     }
     
     public static func clearTimeOverride(messageId: MessageId) {
+        self.debugLog("clearTimeOverride begin")
         var values = self.loadTimeOverrides()
         values.removeValue(forKey: self.key(for: messageId))
         self.storeTimeOverrides(values)
+        self.debugLog("clearTimeOverride stored count=\(values.count)")
     }
     
     public static func parseTime(_ text: String) -> PrankMessageTimeOverride? {
@@ -136,6 +138,21 @@ public enum PrankMessageTimestampOverrides {
         self.storeDateOverrides(values)
         self.debugLog("setDateOverride stored peerOverrides=\(overrides.count) delta=\(delta)")
         return true
+    }
+    
+    public static func clearDateOverride(messageId: MessageId, timestamp: Int32) {
+        self.debugLog("clearDateOverride begin timestamp=\(timestamp)")
+        var values = self.loadDateOverrides()
+        let key = self.peerKey(for: messageId)
+        var overrides = values[key] ?? []
+        overrides.removeAll(where: { $0.anchorTimestamp == timestamp })
+        if overrides.isEmpty {
+            values.removeValue(forKey: key)
+        } else {
+            values[key] = overrides
+        }
+        self.storeDateOverrides(values)
+        self.debugLog("clearDateOverride stored peerOverrides=\(overrides.count)")
     }
     
     public static func effectiveTimestamp(messageId: MessageId, timestamp: Int32) -> Int32 {

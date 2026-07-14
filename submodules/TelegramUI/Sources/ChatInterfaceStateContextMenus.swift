@@ -1221,40 +1221,90 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         if messages.count == 1 && !isAction {
             actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { _, f in
-                prankTimestampDebugLog("time action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id)")
-                f(.dismissWithoutContent)
-                prankTimestampDebugLog("time action dismissed context menu")
-                Queue.mainQueue().after(0.50, {
-                    prankTimestampDebugLog("time action begin set override")
-                    PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: 13, minute: 37)
-                    prankTimestampDebugLog("time action did set override")
-                    controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                    prankTimestampDebugLog("time action requested message update")
-                })
+            }, action: { c, _ in
+                prankTimestampDebugLog("time picker opened peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id)")
+                let timeOptions: [(String, Int, Int)?] = [
+                    ("00:00", 0, 0),
+                    ("09:41", 9, 41),
+                    ("13:37", 13, 37),
+                    ("18:45", 18, 45),
+                    ("23:59", 23, 59),
+                    nil
+                ]
+                var subItems: [ContextMenuItem] = []
+                for option in timeOptions {
+                    if let (title, hour, minute) = option {
+                        subItems.append(.action(ContextMenuActionItem(text: title, icon: { theme in
+                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
+                        }, action: { _, f in
+                            prankTimestampDebugLog("time option selected title=\(title)")
+                            PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: hour, minute: minute)
+                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                            prankTimestampDebugLog("time option requested message update")
+                            f(.dismissWithoutContent)
+                        })))
+                    } else {
+                        subItems.append(.separator)
+                        subItems.append(.action(ContextMenuActionItem(text: "Сбросить время", icon: { theme in
+                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Clear"), color: theme.actionSheet.primaryTextColor)
+                        }, action: { _, f in
+                            prankTimestampDebugLog("time option reset selected")
+                            PrankMessageTimestampOverrides.clearTimeOverride(messageId: message.id)
+                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                            f(.dismissWithoutContent)
+                        })))
+                    }
+                }
+                c?.pushItems(items: .single(ContextController.Items(content: .list(subItems))))
             })))
             actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { _, f in
-                prankTimestampDebugLog("date action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id) timestamp=\(message.timestamp)")
-                f(.dismissWithoutContent)
-                prankTimestampDebugLog("date action dismissed context menu")
-                Queue.mainQueue().after(0.50, {
-                    prankTimestampDebugLog("date action begin compute target")
-                    let calendar = Calendar.current
-                    let targetDate = calendar.date(byAdding: .day, value: 1, to: Date(timeIntervalSince1970: TimeInterval(message.timestamp))) ?? Date(timeIntervalSince1970: TimeInterval(message.timestamp))
-                    let components = calendar.dateComponents([.day, .month, .year], from: targetDate)
-                    if let day = components.day, let month = components.month, let year = components.year {
-                        let dateText = String(format: "%02d.%02d.%04d", day, month, year)
-                        prankTimestampDebugLog("date action target=\(dateText)")
-                        let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
-                        prankTimestampDebugLog("date action did set override result=\(result)")
-                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                        prankTimestampDebugLog("date action requested message update")
+            }, action: { c, _ in
+                prankTimestampDebugLog("date picker opened peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id) timestamp=\(message.timestamp)")
+                let calendar = Calendar.current
+                let baseDate = Date(timeIntervalSince1970: TimeInterval(message.timestamp))
+                let dateOptions: [(String, Int)?] = [
+                    ("Вчера", -1),
+                    ("Сегодня", 0),
+                    ("Завтра", 1),
+                    ("+7 дней", 7),
+                    ("+30 дней", 30),
+                    nil
+                ]
+                var subItems: [ContextMenuItem] = []
+                for option in dateOptions {
+                    if let (title, dayOffset) = option {
+                        subItems.append(.action(ContextMenuActionItem(text: title, icon: { theme in
+                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
+                        }, action: { _, f in
+                            prankTimestampDebugLog("date option selected title=\(title) offset=\(dayOffset)")
+                            let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: baseDate) ?? baseDate
+                            let components = calendar.dateComponents([.day, .month, .year], from: targetDate)
+                            if let day = components.day, let month = components.month, let year = components.year {
+                                let dateText = String(format: "%02d.%02d.%04d", day, month, year)
+                                prankTimestampDebugLog("date option target=\(dateText)")
+                                let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
+                                prankTimestampDebugLog("date option did set override result=\(result)")
+                                controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                                prankTimestampDebugLog("date option requested message update")
+                            } else {
+                                prankTimestampDebugLog("date option failed components")
+                            }
+                            f(.dismissWithoutContent)
+                        })))
                     } else {
-                        prankTimestampDebugLog("date action failed components")
+                        subItems.append(.separator)
+                        subItems.append(.action(ContextMenuActionItem(text: "Сбросить дату", icon: { theme in
+                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Clear"), color: theme.actionSheet.primaryTextColor)
+                        }, action: { _, f in
+                            prankTimestampDebugLog("date option reset selected")
+                            PrankMessageTimestampOverrides.clearDateOverride(messageId: message.id, timestamp: message.timestamp)
+                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                            f(.dismissWithoutContent)
+                        })))
                     }
-                })
+                }
+                c?.pushItems(items: .single(ContextController.Items(content: .list(subItems))))
             })))
         }
         

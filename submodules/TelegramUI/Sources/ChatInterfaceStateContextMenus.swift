@@ -30,10 +30,6 @@ import ChatPresentationInterfaceState
 import Pasteboard
 import BrowserUI
 import SettingsUI
-
-private func prankTimestampDebugLog(_ text: String) {
-    NSLog("[PrankTimestamp] \(text)")
-}
 import TextNodeWithEntities
 import ChatControllerInteraction
 import ChatMessageItemCommon
@@ -41,6 +37,124 @@ import ChatMessageItemView
 import ChatMessageBubbleItemNode
 import AdsInfoScreen
 import AdsReportScreen
+
+private func prankTimestampDebugLog(_ text: String) {
+    NSLog("[PrankTimestamp] \(text)")
+}
+
+private enum PrankTimestampPickerMode {
+    case time
+    case date
+}
+
+private final class PrankTimestampPickerController: UIViewController {
+    private let presentationData: PresentationData
+    private let mode: PrankTimestampPickerMode
+    private let initialDate: Date
+    private let completion: (Date) -> Void
+    
+    private let dimView = UIView()
+    private let contentView = UIView()
+    private let titleLabel = UILabel()
+    private let datePicker = UIDatePicker()
+    private let cancelButton = UIButton(type: .system)
+    private let doneButton = UIButton(type: .system)
+    
+    init(presentationData: PresentationData, mode: PrankTimestampPickerMode, initialDate: Date, completion: @escaping (Date) -> Void) {
+        self.presentationData = presentationData
+        self.mode = mode
+        self.initialDate = initialDate
+        self.completion = completion
+        super.init(nibName: nil, bundle: nil)
+        self.modalPresentationStyle = .overFullScreen
+        self.modalTransitionStyle = .crossDissolve
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        self.view.backgroundColor = .clear
+        
+        self.dimView.backgroundColor = UIColor(white: 0.0, alpha: 0.5)
+        self.dimView.alpha = 0.0
+        self.dimView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(self.cancelPressed)))
+        self.view.addSubview(self.dimView)
+        
+        self.contentView.backgroundColor = self.presentationData.theme.actionSheet.itemBackgroundColor
+        self.contentView.layer.cornerRadius = 16.0
+        self.contentView.layer.masksToBounds = true
+        self.view.addSubview(self.contentView)
+        
+        self.titleLabel.text = self.mode == .time ? "Сменить время" : "Сменить дату"
+        self.titleLabel.font = UIFont.boldSystemFont(ofSize: 17.0)
+        self.titleLabel.textColor = self.presentationData.theme.actionSheet.primaryTextColor
+        self.titleLabel.textAlignment = .center
+        self.contentView.addSubview(self.titleLabel)
+        
+        self.datePicker.date = self.initialDate
+        self.datePicker.timeZone = TimeZone.current
+        self.datePicker.datePickerMode = self.mode == .time ? .time : .date
+        self.datePicker.minuteInterval = self.mode == .time ? 1 : 5
+        if #available(iOS 13.4, *) {
+            self.datePicker.preferredDatePickerStyle = .wheels
+        }
+        self.contentView.addSubview(self.datePicker)
+        
+        self.cancelButton.setTitle(self.presentationData.strings.Common_Cancel, for: .normal)
+        self.cancelButton.titleLabel?.font = UIFont.systemFont(ofSize: 17.0)
+        self.cancelButton.setTitleColor(self.presentationData.theme.actionSheet.controlAccentColor, for: .normal)
+        self.cancelButton.addTarget(self, action: #selector(self.cancelPressed), for: .touchUpInside)
+        self.contentView.addSubview(self.cancelButton)
+        
+        self.doneButton.setTitle(self.presentationData.strings.Common_Done, for: .normal)
+        self.doneButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 17.0)
+        self.doneButton.setTitleColor(self.presentationData.theme.actionSheet.controlAccentColor, for: .normal)
+        self.doneButton.addTarget(self, action: #selector(self.donePressed), for: .touchUpInside)
+        self.contentView.addSubview(self.doneButton)
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        
+        let bounds = self.view.bounds
+        self.dimView.frame = bounds
+        
+        let sideInset: CGFloat = 10.0
+        let bottomInset = self.view.safeAreaInsets.bottom
+        let contentWidth = bounds.width - sideInset * 2.0
+        let contentHeight: CGFloat = 356.0 + bottomInset
+        self.contentView.frame = CGRect(x: sideInset, y: bounds.height - contentHeight - 8.0, width: contentWidth, height: contentHeight)
+        
+        self.titleLabel.frame = CGRect(x: 56.0, y: 16.0, width: contentWidth - 112.0, height: 24.0)
+        self.cancelButton.frame = CGRect(x: 8.0, y: 8.0, width: 96.0, height: 40.0)
+        self.doneButton.frame = CGRect(x: contentWidth - 104.0, y: 8.0, width: 96.0, height: 40.0)
+        self.datePicker.frame = CGRect(x: 0.0, y: 54.0, width: contentWidth, height: 260.0)
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        UIView.animate(withDuration: 0.2) {
+            self.dimView.alpha = 1.0
+        }
+    }
+    
+    @objc private func cancelPressed() {
+        prankTimestampDebugLog("picker cancel mode=\(self.mode)")
+        self.dismiss(animated: true)
+    }
+    
+    @objc private func donePressed() {
+        prankTimestampDebugLog("picker done mode=\(self.mode) date=\(self.datePicker.date.timeIntervalSince1970)")
+        let date = self.datePicker.date
+        self.dismiss(animated: true, completion: {
+            self.completion(date)
+        })
+    }
+}
  
 private struct MessageContextMenuData {
     let starStatus: Bool?
@@ -1221,90 +1335,53 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         if messages.count == 1 && !isAction {
             actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { c, _ in
-                prankTimestampDebugLog("time picker opened peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id)")
-                let timeOptions: [(String, Int, Int)?] = [
-                    ("00:00", 0, 0),
-                    ("09:41", 9, 41),
-                    ("13:37", 13, 37),
-                    ("18:45", 18, 45),
-                    ("23:59", 23, 59),
-                    nil
-                ]
-                var subItems: [ContextMenuItem] = []
-                for option in timeOptions {
-                    if let (title, hour, minute) = option {
-                        subItems.append(.action(ContextMenuActionItem(text: title, icon: { theme in
-                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-                        }, action: { _, f in
-                            prankTimestampDebugLog("time option selected title=\(title)")
-                            PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: hour, minute: minute)
-                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                            prankTimestampDebugLog("time option requested message update")
-                            f(.dismissWithoutContent)
-                        })))
-                    } else {
-                        subItems.append(.separator)
-                        subItems.append(.action(ContextMenuActionItem(text: "Сбросить время", icon: { theme in
-                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Clear"), color: theme.actionSheet.primaryTextColor)
-                        }, action: { _, f in
-                            prankTimestampDebugLog("time option reset selected")
-                            PrankMessageTimestampOverrides.clearTimeOverride(messageId: message.id)
-                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                            f(.dismissWithoutContent)
-                        })))
+            }, action: { _, f in
+                prankTimestampDebugLog("time picker action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id)")
+                f(.dismissWithoutContent)
+                Queue.mainQueue().after(0.35, {
+                    var initialDate = Date(timeIntervalSince1970: TimeInterval(PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: message.timestamp)))
+                    if let override = PrankMessageTimestampOverrides.timeOverride(for: message.id) {
+                        let calendar = Calendar.current
+                        var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: initialDate)
+                        components.hour = override.hour
+                        components.minute = override.minute
+                        components.second = 0
+                        initialDate = calendar.date(from: components) ?? initialDate
                     }
-                }
-                c?.pushItems(items: .single(ContextController.Items(content: .list(subItems))))
+                    let picker = PrankTimestampPickerController(presentationData: context.sharedContext.currentPresentationData.with { $0 }, mode: .time, initialDate: initialDate, completion: { date in
+                        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                        guard let hour = components.hour, let minute = components.minute else {
+                            prankTimestampDebugLog("time picker failed components")
+                            return
+                        }
+                        prankTimestampDebugLog("time picker selected hour=\(hour) minute=\(minute)")
+                        PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: hour, minute: minute)
+                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                    })
+                    controllerInteraction.navigationController()?.present(picker, animated: false)
+                })
             })))
             actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { c, _ in
-                prankTimestampDebugLog("date picker opened peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id) timestamp=\(message.timestamp)")
-                let calendar = Calendar.current
-                let baseDate = Date(timeIntervalSince1970: TimeInterval(message.timestamp))
-                let dateOptions: [(String, Int)?] = [
-                    ("Вчера", -1),
-                    ("Сегодня", 0),
-                    ("Завтра", 1),
-                    ("+7 дней", 7),
-                    ("+30 дней", 30),
-                    nil
-                ]
-                var subItems: [ContextMenuItem] = []
-                for option in dateOptions {
-                    if let (title, dayOffset) = option {
-                        subItems.append(.action(ContextMenuActionItem(text: title, icon: { theme in
-                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-                        }, action: { _, f in
-                            prankTimestampDebugLog("date option selected title=\(title) offset=\(dayOffset)")
-                            let targetDate = calendar.date(byAdding: .day, value: dayOffset, to: baseDate) ?? baseDate
-                            let components = calendar.dateComponents([.day, .month, .year], from: targetDate)
-                            if let day = components.day, let month = components.month, let year = components.year {
-                                let dateText = String(format: "%02d.%02d.%04d", day, month, year)
-                                prankTimestampDebugLog("date option target=\(dateText)")
-                                let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
-                                prankTimestampDebugLog("date option did set override result=\(result)")
-                                controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                                prankTimestampDebugLog("date option requested message update")
-                            } else {
-                                prankTimestampDebugLog("date option failed components")
-                            }
-                            f(.dismissWithoutContent)
-                        })))
-                    } else {
-                        subItems.append(.separator)
-                        subItems.append(.action(ContextMenuActionItem(text: "Сбросить дату", icon: { theme in
-                            return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Clear"), color: theme.actionSheet.primaryTextColor)
-                        }, action: { _, f in
-                            prankTimestampDebugLog("date option reset selected")
-                            PrankMessageTimestampOverrides.clearDateOverride(messageId: message.id, timestamp: message.timestamp)
-                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                            f(.dismissWithoutContent)
-                        })))
-                    }
-                }
-                c?.pushItems(items: .single(ContextController.Items(content: .list(subItems))))
+            }, action: { _, f in
+                prankTimestampDebugLog("date picker action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id) timestamp=\(message.timestamp)")
+                f(.dismissWithoutContent)
+                Queue.mainQueue().after(0.35, {
+                    let initialDate = Date(timeIntervalSince1970: TimeInterval(PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: message.timestamp)))
+                    let picker = PrankTimestampPickerController(presentationData: context.sharedContext.currentPresentationData.with { $0 }, mode: .date, initialDate: initialDate, completion: { date in
+                        let components = Calendar.current.dateComponents([.day, .month, .year], from: date)
+                        guard let day = components.day, let month = components.month, let year = components.year else {
+                            prankTimestampDebugLog("date picker failed components")
+                            return
+                        }
+                        let dateText = String(format: "%02d.%02d.%04d", day, month, year)
+                        prankTimestampDebugLog("date picker selected target=\(dateText)")
+                        let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
+                        prankTimestampDebugLog("date picker set override result=\(result)")
+                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                    })
+                    controllerInteraction.navigationController()?.present(picker, animated: false)
+                })
             })))
         }
         

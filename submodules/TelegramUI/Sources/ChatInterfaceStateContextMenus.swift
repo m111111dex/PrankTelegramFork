@@ -30,6 +30,10 @@ import ChatPresentationInterfaceState
 import Pasteboard
 import BrowserUI
 import SettingsUI
+
+private func prankTimestampDebugLog(_ text: String) {
+    NSLog("[PrankTimestamp] \(text)")
+}
 import TextNodeWithEntities
 import ChatControllerInteraction
 import ChatMessageItemCommon
@@ -1218,22 +1222,39 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
             }, action: { _, f in
-                PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: 13, minute: 37)
-                controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                prankTimestampDebugLog("time action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id)")
                 f(.dismissWithoutContent)
+                prankTimestampDebugLog("time action dismissed context menu")
+                Queue.mainQueue().after(0.50, {
+                    prankTimestampDebugLog("time action begin set override")
+                    PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: 13, minute: 37)
+                    prankTimestampDebugLog("time action did set override")
+                    controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                    prankTimestampDebugLog("time action requested message update")
+                })
             })))
             actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
             }, action: { _, f in
-                let calendar = Calendar.current
-                let targetDate = calendar.date(byAdding: .day, value: 1, to: Date(timeIntervalSince1970: TimeInterval(message.timestamp))) ?? Date(timeIntervalSince1970: TimeInterval(message.timestamp))
-                let components = calendar.dateComponents([.day, .month, .year], from: targetDate)
-                if let day = components.day, let month = components.month, let year = components.year {
-                    let dateText = String(format: "%02d.%02d.%04d", day, month, year)
-                    let _ = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
-                    controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                }
+                prankTimestampDebugLog("date action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id) timestamp=\(message.timestamp)")
                 f(.dismissWithoutContent)
+                prankTimestampDebugLog("date action dismissed context menu")
+                Queue.mainQueue().after(0.50, {
+                    prankTimestampDebugLog("date action begin compute target")
+                    let calendar = Calendar.current
+                    let targetDate = calendar.date(byAdding: .day, value: 1, to: Date(timeIntervalSince1970: TimeInterval(message.timestamp))) ?? Date(timeIntervalSince1970: TimeInterval(message.timestamp))
+                    let components = calendar.dateComponents([.day, .month, .year], from: targetDate)
+                    if let day = components.day, let month = components.month, let year = components.year {
+                        let dateText = String(format: "%02d.%02d.%04d", day, month, year)
+                        prankTimestampDebugLog("date action target=\(dateText)")
+                        let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
+                        prankTimestampDebugLog("date action did set override result=\(result)")
+                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                        prankTimestampDebugLog("date action requested message update")
+                    } else {
+                        prankTimestampDebugLog("date action failed components")
+                    }
+                })
             })))
         }
         

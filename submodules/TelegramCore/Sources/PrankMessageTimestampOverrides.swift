@@ -22,6 +22,10 @@ public struct PrankMessageDateOverride: Codable, Equatable {
 }
 
 public enum PrankMessageTimestampOverrides {
+    private static func debugLog(_ text: String) {
+        NSLog("[PrankTimestamp] \(text)")
+    }
+    
     private static let timeOverridesKey = "PrankMessageTimestampOverrides.time.v1"
     private static let dateOverridesKey = "PrankMessageTimestampOverrides.date.v1"
     
@@ -64,16 +68,23 @@ public enum PrankMessageTimestampOverrides {
     }
     
     public static func timeOverride(for messageId: MessageId) -> PrankMessageTimeOverride? {
-        return self.loadTimeOverrides()[self.key(for: messageId)]
+        let result = self.loadTimeOverrides()[self.key(for: messageId)]
+        if let result = result {
+            self.debugLog("timeOverride hit hour=\(result.hour) minute=\(result.minute)")
+        }
+        return result
     }
     
     public static func setTimeOverride(messageId: MessageId, hour: Int, minute: Int) {
+        self.debugLog("setTimeOverride begin hour=\(hour) minute=\(minute)")
         guard hour >= 0 && hour < 24 && minute >= 0 && minute < 60 else {
+            self.debugLog("setTimeOverride invalid input")
             return
         }
         var values = self.loadTimeOverrides()
         values[self.key(for: messageId)] = PrankMessageTimeOverride(hour: hour, minute: minute)
         self.storeTimeOverrides(values)
+        self.debugLog("setTimeOverride stored count=\(values.count)")
     }
     
     public static func clearTimeOverride(messageId: MessageId) {
@@ -95,7 +106,9 @@ public enum PrankMessageTimestampOverrides {
     }
     
     public static func setDateOverride(messageId: MessageId, timestamp: Int32, dateText: String) -> Bool {
+        self.debugLog("setDateOverride begin timestamp=\(timestamp) text=\(dateText)")
         guard let targetComponents = self.parseDate(dateText) else {
+            self.debugLog("setDateOverride parse failed")
             return false
         }
         var calendar = Calendar.current
@@ -121,6 +134,7 @@ public enum PrankMessageTimestampOverrides {
         overrides.sort(by: { $0.anchorTimestamp < $1.anchorTimestamp })
         values[key] = overrides
         self.storeDateOverrides(values)
+        self.debugLog("setDateOverride stored peerOverrides=\(overrides.count) delta=\(delta)")
         return true
     }
     

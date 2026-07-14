@@ -1335,52 +1335,60 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         if messages.count == 1 && !isAction {
             actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { _, f in
+            }, action: { c, _ in
                 prankTimestampDebugLog("time picker action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id)")
-                f(.dismissWithoutContent)
-                Queue.mainQueue().after(0.35, {
-                    var initialDate = Date(timeIntervalSince1970: TimeInterval(PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: message.timestamp)))
-                    if let override = PrankMessageTimestampOverrides.timeOverride(for: message.id) {
-                        let calendar = Calendar.current
-                        var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: initialDate)
-                        components.hour = override.hour
-                        components.minute = override.minute
-                        components.second = 0
-                        initialDate = calendar.date(from: components) ?? initialDate
-                    }
-                    let picker = PrankTimestampPickerController(presentationData: context.sharedContext.currentPresentationData.with { $0 }, mode: .time, initialDate: initialDate, completion: { date in
-                        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
-                        guard let hour = components.hour, let minute = components.minute else {
-                            prankTimestampDebugLog("time picker failed components")
-                            return
+                c?.dismiss(result: .dismissWithoutContent, completion: {
+                    prankTimestampDebugLog("time picker context menu dismissed")
+                    Queue.mainQueue().after(0.35, {
+                        prankTimestampDebugLog("time picker prepare controller")
+                        var initialDate = Date(timeIntervalSince1970: TimeInterval(PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: message.timestamp)))
+                        if let override = PrankMessageTimestampOverrides.timeOverride(for: message.id) {
+                            let calendar = Calendar.current
+                            var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: initialDate)
+                            components.hour = override.hour
+                            components.minute = override.minute
+                            components.second = 0
+                            initialDate = calendar.date(from: components) ?? initialDate
                         }
-                        prankTimestampDebugLog("time picker selected hour=\(hour) minute=\(minute)")
-                        PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: hour, minute: minute)
-                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                        let picker = PrankTimestampPickerController(presentationData: context.sharedContext.currentPresentationData.with { $0 }, mode: .time, initialDate: initialDate, completion: { date in
+                            let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+                            guard let hour = components.hour, let minute = components.minute else {
+                                prankTimestampDebugLog("time picker failed components")
+                                return
+                            }
+                            prankTimestampDebugLog("time picker selected hour=\(hour) minute=\(minute)")
+                            PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: hour, minute: minute)
+                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                        })
+                        prankTimestampDebugLog("time picker present controller")
+                        controllerInteraction.navigationController()?.present(picker, animated: false)
                     })
-                    controllerInteraction.navigationController()?.present(picker, animated: false)
                 })
             })))
             actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
-            }, action: { _, f in
+            }, action: { c, _ in
                 prankTimestampDebugLog("date picker action tapped peer=\(message.id.peerId.toInt64()) namespace=\(message.id.namespace) id=\(message.id.id) timestamp=\(message.timestamp)")
-                f(.dismissWithoutContent)
-                Queue.mainQueue().after(0.35, {
-                    let initialDate = Date(timeIntervalSince1970: TimeInterval(PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: message.timestamp)))
-                    let picker = PrankTimestampPickerController(presentationData: context.sharedContext.currentPresentationData.with { $0 }, mode: .date, initialDate: initialDate, completion: { date in
-                        let components = Calendar.current.dateComponents([.day, .month, .year], from: date)
-                        guard let day = components.day, let month = components.month, let year = components.year else {
-                            prankTimestampDebugLog("date picker failed components")
-                            return
-                        }
-                        let dateText = String(format: "%02d.%02d.%04d", day, month, year)
-                        prankTimestampDebugLog("date picker selected target=\(dateText)")
-                        let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
-                        prankTimestampDebugLog("date picker set override result=\(result)")
-                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                c?.dismiss(result: .dismissWithoutContent, completion: {
+                    prankTimestampDebugLog("date picker context menu dismissed")
+                    Queue.mainQueue().after(0.35, {
+                        prankTimestampDebugLog("date picker prepare controller")
+                        let initialDate = Date(timeIntervalSince1970: TimeInterval(PrankMessageTimestampOverrides.effectiveTimestamp(messageId: message.id, timestamp: message.timestamp)))
+                        let picker = PrankTimestampPickerController(presentationData: context.sharedContext.currentPresentationData.with { $0 }, mode: .date, initialDate: initialDate, completion: { date in
+                            let components = Calendar.current.dateComponents([.day, .month, .year], from: date)
+                            guard let day = components.day, let month = components.month, let year = components.year else {
+                                prankTimestampDebugLog("date picker failed components")
+                                return
+                            }
+                            let dateText = String(format: "%02d.%02d.%04d", day, month, year)
+                            prankTimestampDebugLog("date picker selected target=\(dateText)")
+                            let result = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
+                            prankTimestampDebugLog("date picker set override result=\(result)")
+                            controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                        })
+                        prankTimestampDebugLog("date picker present controller")
+                        controllerInteraction.navigationController()?.present(picker, animated: false)
                     })
-                    controllerInteraction.navigationController()?.present(picker, animated: false)
                 })
             })))
         }

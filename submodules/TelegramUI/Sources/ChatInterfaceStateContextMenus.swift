@@ -1218,46 +1218,22 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
             }, action: { _, f in
+                PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: 13, minute: 37)
+                controllerInteraction.requestMessageUpdate(message.id, true, nil)
                 f(.dismissWithoutContent)
-                Queue.mainQueue().after(0.35, {
-                    let alertController = UIAlertController(title: "Сменить время", message: "Введите время в формате ЧЧ:ММ", preferredStyle: .alert)
-                    alertController.addTextField { textField in
-                        textField.placeholder = "13:37"
-                        textField.keyboardType = .numbersAndPunctuation
-                        if let override = PrankMessageTimestampOverrides.timeOverride(for: message.id) {
-                            textField.text = String(format: "%02d:%02d", override.hour, override.minute)
-                        }
-                    }
-                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_Cancel, style: .cancel, handler: nil))
-                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_OK, style: .default, handler: { _ in
-                        guard let text = alertController.textFields?.first?.text, let override = PrankMessageTimestampOverrides.parseTime(text) else {
-                            return
-                        }
-                        PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: override.hour, minute: override.minute)
-                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                    }))
-                    controllerInteraction.navigationController()?.present(alertController, animated: true)
-                })
             })))
             actions.append(.action(ContextMenuActionItem(text: "Сменить дату", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
             }, action: { _, f in
+                let calendar = Calendar.current
+                let targetDate = calendar.date(byAdding: .day, value: 1, to: Date(timeIntervalSince1970: TimeInterval(message.timestamp))) ?? Date(timeIntervalSince1970: TimeInterval(message.timestamp))
+                let components = calendar.dateComponents([.day, .month, .year], from: targetDate)
+                if let day = components.day, let month = components.month, let year = components.year {
+                    let dateText = String(format: "%02d.%02d.%04d", day, month, year)
+                    let _ = PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: dateText)
+                    controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                }
                 f(.dismissWithoutContent)
-                Queue.mainQueue().after(0.35, {
-                    let alertController = UIAlertController(title: "Сменить дату", message: "Введите дату в формате ДД.ММ.ГГГГ. Это сообщение и более новые сообщения будут отображаться с таким сдвигом даты.", preferredStyle: .alert)
-                    alertController.addTextField { textField in
-                        textField.placeholder = "14.07.2026"
-                        textField.keyboardType = .numbersAndPunctuation
-                    }
-                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_Cancel, style: .cancel, handler: nil))
-                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_OK, style: .default, handler: { _ in
-                        guard let text = alertController.textFields?.first?.text, PrankMessageTimestampOverrides.setDateOverride(messageId: message.id, timestamp: message.timestamp, dateText: text) else {
-                            return
-                        }
-                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
-                    }))
-                    controllerInteraction.navigationController()?.present(alertController, animated: true)
-                })
             })))
         }
         

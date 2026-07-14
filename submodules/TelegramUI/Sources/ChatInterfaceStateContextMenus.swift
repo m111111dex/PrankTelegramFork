@@ -47,7 +47,7 @@ private enum PrankTimestampPickerMode {
     case date
 }
 
-private final class PrankTimestampPickerController: UIViewController {
+private final class PrankTimestampPickerController: ViewController {
     private let presentationData: PresentationData
     private let mode: PrankTimestampPickerMode
     private let initialDate: Date
@@ -65,12 +65,13 @@ private final class PrankTimestampPickerController: UIViewController {
         self.mode = mode
         self.initialDate = initialDate
         self.completion = completion
-        super.init(nibName: nil, bundle: nil)
-        self.modalPresentationStyle = .overFullScreen
-        self.modalTransitionStyle = .crossDissolve
+        super.init(navigationBarPresentationData: nil)
+        self.statusBar.statusBarStyle = .Ignore
+        self.blocksBackgroundWhenInOverlay = true
+        self.acceptsFocusWhenInOverlay = true
     }
     
-    required init?(coder: NSCoder) {
+    required init(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
@@ -1361,7 +1362,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             controllerInteraction.requestMessageUpdate(message.id, true, nil)
                         })
                         prankTimestampDebugLog("time picker present controller")
-                        controllerInteraction.navigationController()?.present(picker, animated: false)
+                        controllerInteraction.presentController(picker, nil)
                     })
                 })
             })))
@@ -1387,7 +1388,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                             controllerInteraction.requestMessageUpdate(message.id, true, nil)
                         })
                         prankTimestampDebugLog("date picker present controller")
-                        controllerInteraction.navigationController()?.present(picker, animated: false)
+                        controllerInteraction.presentController(picker, nil)
                     })
                 })
             })))

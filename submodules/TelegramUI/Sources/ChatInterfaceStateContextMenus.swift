@@ -1214,6 +1214,32 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             })))
         }
         
+        if messages.count == 1 && !isAction {
+            actions.append(.action(ContextMenuActionItem(text: "Сменить время", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Schedule"), color: theme.actionSheet.primaryTextColor)
+            }, action: { c, _ in
+                c?.dismiss(completion: {
+                    let alertController = UIAlertController(title: "Сменить время", message: "Введите время в формате ЧЧ:ММ", preferredStyle: .alert)
+                    alertController.addTextField { textField in
+                        textField.placeholder = "13:37"
+                        textField.keyboardType = .numbersAndPunctuation
+                        if let override = PrankMessageTimestampOverrides.timeOverride(for: message.id) {
+                            textField.text = String(format: "%02d:%02d", override.hour, override.minute)
+                        }
+                    }
+                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_Cancel, style: .cancel, handler: nil))
+                    alertController.addAction(UIAlertAction(title: chatPresentationInterfaceState.strings.Common_OK, style: .default, handler: { _ in
+                        guard let text = alertController.textFields?.first?.text, let override = PrankMessageTimestampOverrides.parseTime(text) else {
+                            return
+                        }
+                        PrankMessageTimestampOverrides.setTimeOverride(messageId: message.id, hour: override.hour, minute: override.minute)
+                        controllerInteraction.requestMessageUpdate(message.id, true, nil)
+                    }))
+                    controllerInteraction.navigationController()?.present(alertController, animated: true)
+                })
+            })))
+        }
+        
         if data.messageActions.options.contains(.sendScheduledNow) {
             actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.ScheduledMessages_SendNow, icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Resend"), color: theme.actionSheet.primaryTextColor)

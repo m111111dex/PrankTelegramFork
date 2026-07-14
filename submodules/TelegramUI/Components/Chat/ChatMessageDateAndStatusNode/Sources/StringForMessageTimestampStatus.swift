@@ -17,7 +17,7 @@ private func prankTimestampOverrideText(messageId: EngineMessage.Id, dateTimeFor
     guard let override = PrankMessageTimestampOverrides.timeOverride(for: messageId) else {
         return nil
     }
-    return stringForShortTimestamp(hours: override.hour, minutes: override.minute, dateTimeFormat: dateTimeFormat)
+    return stringForShortTimestamp(hours: Int32(override.hour), minutes: Int32(override.minute), dateTimeFormat: dateTimeFormat)
 }
 
 private func dateStringForDay(strings: PresentationStrings, dateTimeFormat: PresentationDateTimeFormat, timestamp: Int32) -> String {
